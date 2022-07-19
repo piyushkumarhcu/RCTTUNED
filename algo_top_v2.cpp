@@ -10,7 +10,7 @@ void processInputLinks(ap_uint<576> link_in[N_INPUT_LINKS], crystal ECALRegion3x
 
         ap_uint<32> start = 0;
         ap_uint<32> end = 13;
-  
+
         ap_uint<6> wordId, wordId1, wordId2, startId ;
 
 
@@ -130,19 +130,29 @@ void getTowerEt(crystal tempX[CRYSTAL_IN_ETA][CRYSTAL_IN_PHI], ap_uint<12> tower
         #pragma HLS ARRAY_PARTITION variable=tempX complete dim=0
         #pragma HLS ARRAY_PARTITION variable=towerEt complete dim=0
 
+        ap_uint<10>  temp[CRYSTAL_IN_ETA][CRYSTAL_IN_PHI] ;
+        #pragma HLS ARRAY_PARTITION variable=temp complete dim=0
+
+        for(loop i=0; i<CRYSTAL_IN_ETA; i++){
+                      #pragma HLS UNROLL
+           for(loop k=0; k<CRYSTAL_IN_PHI; k++){
+                        #pragma HLS UNROLL
+            temp[i][k] = tempX[i][k].energy ;
+         }}
+
          for(loop i=0; i<CRYSTAL_IN_ETA; i=i+5){
               #pragma HLS UNROLL
               for(loop k=0; k<CRYSTAL_IN_PHI; k=k+5){
                  #pragma HLS UNROLL
-                 ap_uint<12> cntr = (i/5)*4+(k/5) , a, b, c, d, e; 
-                 a = tempX[i+0][k+0].energy + tempX[i+0][k+1].energy + tempX[i+0][k+2].energy + tempX[i+0][k+3].energy + tempX[i+0][k+4].energy;
-                 b = tempX[i+1][k+0].energy + tempX[i+1][k+1].energy + tempX[i+1][k+2].energy + tempX[i+1][k+3].energy + tempX[i+1][k+4].energy;
-                 c = tempX[i+2][k+0].energy + tempX[i+2][k+1].energy + tempX[i+2][k+2].energy + tempX[i+2][k+3].energy + tempX[i+2][k+4].energy;
-                 d = tempX[i+3][k+0].energy + tempX[i+3][k+1].energy + tempX[i+3][k+2].energy + tempX[i+3][k+3].energy + tempX[i+3][k+4].energy;
-                 e = tempX[i+4][k+0].energy + tempX[i+4][k+1].energy + tempX[i+4][k+2].energy + tempX[i+4][k+3].energy + tempX[i+4][k+4].energy;
-                 towerEt[cntr]= a + b + c + d + e;
-          }
-         }
+                 ap_uint<12> cntr = (i/5)*4+(k/5) , a, b, c, d, e;
+                 a = temp[i][k] + temp[i][k+1] + temp[i][k+2] + temp[i][k+3] + temp[i][k+4] ;
+                 b = temp[i+1][k] + temp[i+1][k+1] + temp[i+1][k+2] + temp[i+1][k+3] + temp[i+1][k+4] ;
+                 c = temp[i+2][k] + temp[i+2][k+1] + temp[i+2][k+2] + temp[i+2][k+3] + temp[i+2][k+4] ;
+                 d = temp[i+3][k] + temp[i+3][k+1] + temp[i+3][k+2] + temp[i+3][k+3] + temp[i+3][k+4] ;
+                 e = temp[i+4][k] + temp[i+4][k+1] + temp[i+4][k+2] + temp[i+4][k+3] + temp[i+4][k+4] ;
+                 towerEt[cntr]= a + b + c + d + e ;
+          }}
+
 }
 
 clusterInfo getClusterPosition(const ecalRegion_t& ecalRegion){
@@ -183,7 +193,7 @@ return cluster ;
 }
 
 Cluster packCluster(ap_uint<15>& clusterEt, ap_uint<5>& etaMax_t, ap_uint<5>& phiMax_t, ap_uint<15>& et5x5_t, ap_uint<15>& et2x5_t, ap_uint<2>& brems_t ){
-        
+
         ap_uint<12> peggedEt;
         Cluster pack;
 
@@ -202,80 +212,38 @@ Cluster packCluster(ap_uint<15>& clusterEt, ap_uint<5>& etaMax_t, ap_uint<5>& ph
 return pack;
 }
 
-void RemoveTmp(crystal tempX[CRYSTAL_IN_ETA][CRYSTAL_IN_PHI], ap_uint<5> seed_eta,  ap_uint<5> seed_phi, ap_uint<2> brems){
+void RemoveTmp(crystal temp[CRYSTAL_IN_ETA][CRYSTAL_IN_PHI], ap_uint<5> seed_eta,  ap_uint<5> seed_phi, ap_uint<2> brems  ){
 #pragma HLS ARRAY_PARTITION variable=temp complete dim=0
 #pragma HLS latency min=3
 //#pragma HLS PIPELINE II=9
 
-	ap_uint<12> temp[CRYSTAL_IN_ETA+4][CRYSTAL_IN_PHI+4];
-	#pragma HLS ARRAY_PARTITION variable=temp complete dim=0
+        for(loop i=0; i<CRYSTAL_IN_ETA; i++){
+//                        #pragma HLS UNROLL
+           if(i>=seed_eta-1 && i<=seed_eta+1){
+           for(loop k=0; k<CRYSTAL_IN_PHI; k++){
+                        #pragma HLS UNROLL
+            if(k>=seed_phi-2 && k<=seed_phi+2)  temp[i][k].energy = 0 ;}
+         }}
 
-	ap_uint<6> seed_eta_new, seed_phi_new;
+        if(brems == 1){
+        for(loop i=0; i<CRYSTAL_IN_ETA; i++){
+//                        #pragma HLS UNROLL
+           if(i>=seed_eta-1 && i<=seed_eta+1){
+           for(loop k=0; k<CRYSTAL_IN_PHI; k++){
+                        #pragma HLS UNROLL
+            if(k>=seed_phi-2-5 && k<=seed_phi+2-5)  temp[i][k].energy = 0 ;}
+                        }
+                }
+         }
 
-	seed_eta_new = seed_eta + 2;
-	seed_phi_new = seed_phi + 2;
-
-	for(loop i=0; i<2; i++){
-		#pragma HLS UNROLL
-		for(loop k=0; k<CRYSTAL_IN_PHI+4; k++){
-	    	#pragma HLS UNROLL
-	        	temp[i][k] 		= 0;
-	            temp[i+17][k] 	= 0;
-		}
-	}
-
-	for(loop i=2; i<17; i++){
-		#pragma HLS UNROLL
-	    for(loop k=0; k<2; k++){
-	    	#pragma HLS UNROLL
-	    	temp[i][k] 		= 0;
-	        temp[i][k+22] 	= 0;
-	    }
-	 }
-
-	for(loop i=0; i<CRYSTAL_IN_ETA; i++){
-	   	#pragma HLS UNROLL
-		for(loop k=0; k<CRYSTAL_IN_PHI; k++){
-	    	#pragma HLS UNROLL
-			temp[i+2][k+2] = tempX[i][k].energy;
-		}
-	}
-
-	for(loop i=seed_eta_new-1; i<seed_eta_new+2; i++){
-   	   #pragma HLS UNROLL
-		for(loop k=seed_phi_new-2; k<seed_phi_new+3; k++){
-       	   #pragma HLS UNROLL
-			temp[i][k] = 0;
-		}
-	}
-
-    if(brems == 1){
-        for(loop i=seed_eta_new-1; i<seed_eta_new+2; i++){
-       		#pragma HLS UNROLL
-        	for(loop k=seed_phi_new-2-5; k<seed_phi_new+3-5; k++){
-        		#pragma HLS UNROLL
-        		temp[i][k] = 0;
-        	}
-        }
-    }
-
-    if(brems == 2){
-        for(loop i=seed_eta_new-1; i<seed_eta_new+2; i++){
-      		#pragma HLS UNROLL
-        	for(loop k=seed_phi_new-2+5; k<seed_phi_new+3+5; k++){
-        		#pragma HLS UNROLL
-        	    temp[i][k] = 0;
-        	}
-       }
-    }
-
-    for(loop i=0; i<CRYSTAL_IN_ETA; i++){
-   		#pragma HLS UNROLL
-    	for(loop k=0; k<CRYSTAL_IN_PHI; k++){
-    		#pragma HLS UNROLL
-    		tempX[i][k].energy = temp[i+2][k+2];
-    	}
-    }
+        if(brems == 2){
+        for(loop i=0; i<CRYSTAL_IN_ETA; i++){
+//                        #pragma HLS UNROLL
+           if(i>=seed_eta-1 && i<=seed_eta+1 ){
+           for(loop k=0; k<CRYSTAL_IN_PHI; k++){
+                        #pragma HLS UNROLL
+            if(k>=seed_phi-2+5 && k<=seed_phi+2+5)  temp[i][k].energy = 0 ;}
+         }}}
 }
 
 clusterInfo getBremsValuesPos(crystal tempX[CRYSTAL_IN_ETA][CRYSTAL_IN_PHI], ap_uint<5> seed_eta,  ap_uint<5> seed_phi ){
@@ -374,7 +342,7 @@ clusterInfo cluster_tmp;
 
         seed_eta1 = seed_eta ; //to start from corner
         seed_phi1 = seed_phi ; //to start from corner
-// now we are in the left bottom corner 
+// now we are in the left bottom corner
 
         ap_uint<12> tmp1, tmp2, tmp3 ;
 
@@ -439,7 +407,7 @@ clusterInfo cluster_tmp;
 
         seed_eta1 = seed_eta ; //to start from corner
         seed_phi1 = seed_phi ; //to start from corner
-// now we are in the left bottom corner 
+// now we are in the left bottom corner
         ap_uint<12> tmp1, tmp2, tmp3;
 
         for(loop m=0; m<5 ; m++){
@@ -525,8 +493,8 @@ void stitchClusters(Cluster ClusterIn[Nbclusters], Cluster ClusterOut[Nbclusters
 #pragma HLS PIPELINE II=9
 
 for(loop i=0; i<Nbclusters-4; i++){
-	#pragma HLS UNROLL
-	ClusterOut[i] = ClusterIn[i];
+    #pragma HLS UNROLL
+    ClusterOut[i] = ClusterIn[i];
 }
 
 for(loop i=12; i<Nbclusters; i++){
@@ -538,11 +506,17 @@ for(loop i=12; i<Nbclusters; i++){
 
 for(loop i=0; i<4; i++){
     for(loop j=4; j<8; j++){
-        bool NeighbourInTowerEtaLevel1 = (ClusterIn[i].towerEta()   == 11 && ClusterIn[j].towerEta()   == 12);
-        bool NeighbourInTowerEtaLevel2 = (ClusterIn[i].clusterEta() == 4  && ClusterIn[j].clusterEta() == 0);
-        bool SharingSamePhi            = (ClusterIn[i].clusterPhi() == ClusterIn[j].clusterPhi());
+        ap_uint<5> phi1 = ClusterIn[i].towerPhi()*5 + ClusterIn[i].clusterPhi();
+        ap_uint<5> phi2 = ClusterIn[j].towerPhi()*5 + ClusterIn[j].clusterPhi();
+        ap_uint<5> dPhi;
 
-        bool stitch = (NeighbourInTowerEtaLevel1 && NeighbourInTowerEtaLevel2 && SharingSamePhi);
+        dPhi = (phi1>phi2)?(phi1-phi2):(phi2-phi1);
+
+        bool NghbrInTwrEtaLevel1        = (ClusterIn[i].towerEta()   == 11 && ClusterIn[j].towerEta()   == 12);
+        bool NghbrInTwrEtaLevel2        = (ClusterIn[i].clusterEta() == 4  && ClusterIn[j].clusterEta() == 0);
+        bool SharingPhiInRng            = (dPhi < 2);
+        bool stitch                     = (NghbrInTwrEtaLevel1 && NghbrInTwrEtaLevel2 && SharingPhiInRng);
+
         if(stitch == 1){
             ap_uint<14> cEtSum          = ClusterIn[i].clusterEnergy() + ClusterIn[j].clusterEnergy();
             ap_uint<12> pegged_cEtSum   = (cEtSum > 0xFFF) ? (ap_uint<12>)0xFFF : (ap_uint<12>) cEtSum;
@@ -570,10 +544,17 @@ for(loop i=0; i<4; i++){
 
 for(loop i=4; i<8; i++){
     for(loop j=8; j<12; j++){
-        bool NeighbourInTowerEtaLevel1 = (ClusterIn[i].towerEta()   == 14 && ClusterIn[j].towerEta()   == 15);
-        bool NeighbourInTowerEtaLevel2 = (ClusterIn[i].clusterEta() == 4  && ClusterIn[j].clusterEta() == 0);
-        bool SharingSamePhi            = (ClusterIn[i].clusterPhi() == ClusterIn[j].clusterPhi());
-        bool stitch = (NeighbourInTowerEtaLevel1 && NeighbourInTowerEtaLevel2 && SharingSamePhi);
+        ap_uint<5> phi1 = ClusterIn[i].towerPhi()*5 + ClusterIn[i].clusterPhi();
+        ap_uint<5> phi2 = ClusterIn[j].towerPhi()*5 + ClusterIn[j].clusterPhi();
+        ap_uint<5> dPhi;
+
+        dPhi = (phi1>phi2)?(phi1-phi2):(phi2-phi1);
+
+        bool NghbrInTwrEtaLevel1        = (ClusterIn[i].towerEta()   == 14 && ClusterIn[j].towerEta()   == 15);
+        bool NghbrInTwrEtaLevel2        = (ClusterIn[i].clusterEta() == 4  && ClusterIn[j].clusterEta() == 0);
+        bool SharingPhiInRng            = (dPhi < 2);
+        bool stitch                     = (NghbrInTwrEtaLevel1 && NghbrInTwrEtaLevel2 && SharingPhiInRng);
+
         if(stitch == 1){
         	ap_uint<14> cEtSum          = ClusterIn[i].clusterEnergy() + ClusterIn[j].clusterEnergy();
             ap_uint<12> pegged_cEtSum   = (cEtSum > 0xFFF) ? (ap_uint<12>)0xFFF : (ap_uint<12>) cEtSum;
@@ -631,7 +612,7 @@ tower_t towerEt[36];
 #pragma HLS ARRAY_PARTITION variable=sort_clusterOut complete dim=0
 #pragma HLS ARRAY_PARTITION variable=towerEt complete dim=0
 
-// 9 is eta offset, since this is second part of RCT card 
+// 9 is eta offset, since this is second part of RCT card
 //
         sort_clusterIn[0]  = getRegion3x4(ECALRegion3x4_1, 9);
         sort_clusterIn[1]  = getRegion3x4(ECALRegion3x4_1, 9);
@@ -649,10 +630,10 @@ tower_t towerEt[36];
         sort_clusterIn[11] = getRegion3x4(ECALRegion3x4_3, 15);
 
 // stitch clusters
-        
+
         stitchClusters(sort_clusterIn, sort_clusterInStitched);
 
-// sorting of clusters, we have now 12 clusters, highest 6 
+// sorting of clusters, we have now 12 clusters, highest 6
 // will be sent to SLRB, they come last from
 // sorter
 
@@ -660,7 +641,7 @@ tower_t towerEt[36];
 //for(loop i; i<16; i++) cout << sort_clusterOut[i].clusterEnergy() << endl ;
 // build ECAL towers with unclustered energy
 // keep only 6 highest clusters, others return back to towers
-        
+
         ap_uint<12> towerEtECAL1[12];
         ap_uint<12> towerEtECAL2[12];
         ap_uint<12> towerEtECAL3[12];
@@ -746,4 +727,3 @@ tower_t towerEt[36];
                  processOutLinkSLRA(inClusterLink1, inTowerLink1, link_out[1]);
 
 }
-
